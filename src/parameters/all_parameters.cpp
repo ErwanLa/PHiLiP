@@ -115,7 +115,9 @@ void AllParameters::declare_parameters (dealii::ParameterHandler &prm)
                       " advection_periodicity | "
                       " flow_solver | "
                       " dual_weighted_residual_mesh_adaptation | "
-                      " taylor_green_vortex_energy_check"),
+                      " taylor_green_vortex_energy_check | "
+                      " taylor_green_vortex_restart_check | "
+                      " time_refinement_study"),
                       "The type of test we want to solve. "
                       "Choices are (only run control has been coded up for now)" 
                       " <run_control | " 
@@ -141,7 +143,9 @@ void AllParameters::declare_parameters (dealii::ParameterHandler &prm)
                       "  advection_periodicity | "
                       "  flow_solver | "
                       "  dual_weighted_residual_mesh_adaptation | "
-                      "  taylor_green_vortex_energy_check>.");
+                      "  taylor_green_vortex_energy_check | "
+                      "  taylor_green_vortex_restart_check | "
+                      "  time_refinement_study>.");
 
     prm.declare_entry("pde_type", "advection",
                       dealii::Patterns::Selection(
@@ -177,6 +181,10 @@ void AllParameters::declare_parameters (dealii::ParameterHandler &prm)
                       dealii::Patterns::Selection("symm_internal_penalty | bassi_rebay_2"),
                       "Dissipative numerical flux. "
                       "Choices are <symm_internal_penalty | bassi_rebay_2>.");
+
+    prm.declare_entry("solution_vtk_files_directory_name", ".",
+                      dealii::Patterns::FileName(dealii::Patterns::FileName::FileType::input),
+                      "Name of directory for writing solution vtk files. Current directory by default.");
 
     Parameters::LinearSolverParam::declare_parameters (prm);
     Parameters::ManufacturedConvergenceStudyParam::declare_parameters (prm);
@@ -236,6 +244,8 @@ void AllParameters::parse_parameters (dealii::ParameterHandler &prm)
     else if (test_string == "flow_solver")                              { test_type = flow_solver; }
     else if (test_string == "dual_weighted_residual_mesh_adaptation")   { test_type = dual_weighted_residual_mesh_adaptation; }
     else if (test_string == "taylor_green_vortex_energy_check")         { test_type = taylor_green_vortex_energy_check; }
+    else if (test_string == "taylor_green_vortex_restart_check")        { test_type = taylor_green_vortex_restart_check; }
+    else if (test_string == "time_refinement_study")                    { test_type = time_refinement_study; }
 
     const std::string pde_string = prm.get("pde_type");
     if (pde_string == "advection") {
@@ -311,6 +321,7 @@ void AllParameters::parse_parameters (dealii::ParameterHandler &prm)
     if (flux_reconstruction_aux_string == "kPlus") flux_reconstruction_aux_type = kPlus;
     if (flux_reconstruction_aux_string == "k10Thousand") flux_reconstruction_aux_type = k10Thousand;
 
+    solution_vtk_files_directory_name = prm.get("solution_vtk_files_directory_name");
 
     pcout << "Parsing linear solver subsection..." << std::endl;
     linear_solver_param.parse_parameters (prm);

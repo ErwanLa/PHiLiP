@@ -207,6 +207,12 @@ public:
      */
     real compute_total_energy ( const std::array<real,nstate> &primitive_soln ) const;
 
+    /// Given primitive variables, returns kinetic energy
+    real compute_kinetic_energy_from_primitive_solution ( const std::array<real,nstate> &primitive_soln ) const;
+
+    /// Given conservative variables, returns kinetic energy
+    real compute_kinetic_energy_from_conservative_solution ( const std::array<real,nstate> &conservative_soln ) const;
+
     /// Evaluate entropy from conservative variables
     /** Note that it is not the actual entropy since it's missing some constants.
      *  Used to check entropy convergence
@@ -240,6 +246,10 @@ public:
     /// Given density and pressure, returns NON-DIMENSIONALIZED temperature using free-stream non-dimensionalization
     /** See the book I do like CFD, sec 4.14.2 */
     real compute_temperature_from_density_pressure ( const real density, const real pressure ) const;
+
+    /// Given density and temperature, returns NON-DIMENSIONALIZED pressure using free-stream non-dimensionalization
+    /** See the book I do like CFD, sec 4.14.2 */
+    real compute_pressure_from_density_temperature ( const real density, const real temperature ) const;
 
     /// The Euler split form is that of Kennedy & Gruber.
     /** Refer to Gassner's paper (2016) Eq. 3.10 for more information:  */
@@ -309,7 +319,7 @@ protected:
      *      “High-order accurate implementation of solid wall boundary conditions in curved geometries,”
      *      Journal of Computational Physics, vol. 211, 2006, pp. 492–512.
      */
-    void boundary_slip_wall (
+    virtual void boundary_wall (
         const dealii::Tensor<1,dim,real> &normal_int,
         const std::array<real,nstate> &soln_int,
         const std::array<dealii::Tensor<1,dim,real>,nstate> &soln_grad_int,
@@ -317,7 +327,7 @@ protected:
         std::array<dealii::Tensor<1,dim,real>,nstate> &soln_grad_bc) const;
 
     /// Evaluate the manufactured solution boundary conditions.
-    void boundary_manufactured_solution (
+    virtual void boundary_manufactured_solution (
         const dealii::Point<dim, real> &pos,
         const dealii::Tensor<1,dim,real> &normal_int,
         const std::array<real,nstate> &soln_int,

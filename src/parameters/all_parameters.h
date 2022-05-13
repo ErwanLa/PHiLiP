@@ -130,6 +130,8 @@ public:
         flow_solver,
         dual_weighted_residual_mesh_adaptation,
         taylor_green_vortex_energy_check,
+        taylor_green_vortex_restart_check,
+        time_refinement_study,
     };
     TestType test_type; ///< Selected TestType from the input file.
 
@@ -190,6 +192,9 @@ public:
 
     /// Store flux reconstruction type
     Flux_Reconstruction_Aux flux_reconstruction_aux_type;
+
+    /// Name of directory for writing solution vtk files
+    std::string solution_vtk_files_directory_name;
 
     /// Declare parameters that can be set as inputs and set up the default options
     /** This subroutine should call the sub-parameter classes static declare_parameters()

@@ -204,13 +204,30 @@ template <int dim, int nstate, typename real>
 inline real Euler<dim,nstate,real>
 ::compute_total_energy ( const std::array<real,nstate> &primitive_soln ) const
 {
-    const real density = primitive_soln[0];
     const real pressure = primitive_soln[nstate-1];
+    const real kinetic_energy = compute_kinetic_energy_from_primitive_solution(primitive_soln);
+    const real tot_energy = pressure / this->gamm1 + kinetic_energy;
+    return tot_energy;
+}
+
+template <int dim, int nstate, typename real>
+inline real Euler<dim,nstate,real>
+::compute_kinetic_energy_from_primitive_solution ( const std::array<real,nstate> &primitive_soln ) const
+{
+    const real density = primitive_soln[0];
     const dealii::Tensor<1,dim,real> velocities = extract_velocities_from_primitive<real>(primitive_soln);
     const real vel2 = compute_velocity_squared<real>(velocities);
+    const real kinetic_energy = 0.5*density*vel2;
+    return kinetic_energy;
+}
 
-    const real tot_energy = pressure / gamm1 + 0.5*density*vel2;
-    return tot_energy;
+template <int dim, int nstate, typename real>
+inline real Euler<dim,nstate,real>
+::compute_kinetic_energy_from_conservative_solution ( const std::array<real,nstate> &conservative_soln ) const
+{
+    const std::array<real,nstate> primitive_soln = convert_conservative_to_primitive<real>(conservative_soln);
+    const real kinetic_energy = compute_kinetic_energy_from_primitive_solution(primitive_soln);
+    return kinetic_energy;
 }
 
 template <int dim, int nstate, typename real>
@@ -273,6 +290,7 @@ inline real Euler<dim,nstate,real>
     const real density = gam*pressure/temperature * mach_inf_sqr;
     return density;
 }
+
 template <int dim, int nstate, typename real>
 inline real Euler<dim,nstate,real>
 ::compute_temperature_from_density_pressure ( const real density, const real pressure ) const
@@ -281,6 +299,13 @@ inline real Euler<dim,nstate,real>
     return temperature;
 }
 
+template <int dim, int nstate, typename real>
+inline real Euler<dim,nstate,real>
+::compute_pressure_from_density_temperature ( const real density, const real temperature ) const
+{
+    const real pressure = density*temperature/(gam*mach_inf_sqr);
+    return pressure;
+}
 
 template <int dim, int nstate, typename real>
 template<typename real2>
@@ -635,7 +660,7 @@ void Euler<dim,nstate,real>
 
 template <int dim, int nstate, typename real>
 void Euler<dim,nstate,real>
-::boundary_slip_wall (
+::boundary_wall (
    const dealii::Tensor<1,dim,real> &normal_int,
    const std::array<real,nstate> &soln_int,
    const std::array<dealii::Tensor<1,dim,real>,nstate> &soln_grad_int,
@@ -923,7 +948,7 @@ void Euler<dim,nstate,real>
     } 
     else if (boundary_type == 1001) {
         // Slip wall boundary condition
-        boundary_slip_wall (normal_int, soln_int, soln_grad_int, soln_bc, soln_grad_bc);
+        boundary_wall (normal_int, soln_int, soln_grad_int, soln_bc, soln_grad_bc);
     } 
     else if (boundary_type == 1002) {
         // Pressure outflow boundary condition (back pressure)

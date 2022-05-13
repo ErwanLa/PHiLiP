@@ -2,6 +2,7 @@
 #define __NAVIER_STOKES__
 
 #include "euler.h"
+#include "parameters/parameters_navier_stokes.h"
 
 namespace PHiLiP {
 namespace Physics {
@@ -11,6 +12,7 @@ template <int dim, int nstate, typename real>
 class NavierStokes : public Euler <dim, nstate, real>
 {
 public:
+    using thermal_boundary_condition_enum = Parameters::NavierStokesParam::ThermalBoundaryCondition;
 	/// Constructor
 	NavierStokes( 
 	    const double                                              ref_length,
@@ -20,6 +22,8 @@ public:
 	    const double                                              side_slip_angle,
 	    const double                                              prandtl_number,
         const double                                              reynolds_number_inf,
+        const double                                              isothermal_wall_temperature = 1.0,
+        const thermal_boundary_condition_enum                     thermal_boundary_condition_type = thermal_boundary_condition_enum::adiabatic,
         const dealii::Tensor<2,3,double>                          input_diffusion_tensor = Parameters::ManufacturedSolutionParam::get_default_diffusion_tensor(),
 	    std::shared_ptr< ManufacturedSolutionFunction<dim,real> > manufactured_solution_function = nullptr);
 
@@ -29,6 +33,10 @@ public:
 	const double prandtl_number;
 	/// Farfield (free stream) Reynolds number
 	const double reynolds_number_inf;
+    /// Nondimensionalized isothermal wall temperature
+    const double isothermal_wall_temperature;
+    /// Thermal boundary condition type (adiabatic or isothermal)
+    const thermal_boundary_condition_enum thermal_boundary_condition_type;
 
     /** Obtain gradient of primitive variables from gradient of conservative variables */
     template<typename real2>
@@ -73,9 +81,60 @@ public:
     	const std::array<real2,nstate> &primitive_soln,
     	const std::array<dealii::Tensor<1,dim,real2>,nstate> &primitive_soln_gradient) const;
 
+    /// Evaluate vorticity from conservative variables and gradient of conservative variables
+    dealii::Tensor<1,3,real> compute_vorticity (
+        const std::array<real,nstate> &conservative_soln,
+        const std::array<dealii::Tensor<1,dim,real>,nstate> &conservative_soln_gradient) const;
+
+    /// Evaluate enstrophy from conservative variables and gradient of conservative variables
+    real compute_enstrophy (
+        const std::array<real,nstate> &conservative_soln,
+        const std::array<dealii::Tensor<1,dim,real>,nstate> &conservative_soln_gradient) const;
+
+    /** Evaluate non-dimensional theoretical vorticity-based dissipation rate integrated enstrophy. 
+     *  Note: For incompressible flows or when dilatation effects are negligible
+     *  -- Reference: Cox, Christopher, et al. "Accuracy, stability, and performance comparison 
+     *                between the spectral difference and flux reconstruction schemes." 
+     *                Computers & Fluids 221 (2021): 104922.
+     *  -- Equation (56) with free-stream nondimensionalization applied
+     * */
+    real compute_vorticity_based_dissipation_rate_from_integrated_enstrophy (
+        const real integrated_enstrophy) const;
+
+    /** Evaluate pressure dilatation from conservative variables and gradient of conservative variables
+     *  -- Reference: Cox, Christopher, et al. "Accuracy, stability, and performance comparison 
+     *                between the spectral difference and flux reconstruction schemes." 
+     *                Computers & Fluids 221 (2021): 104922.
+     * */
+    real compute_pressure_dilatation (
+        const std::array<real,nstate> &conservative_soln,
+        const std::array<dealii::Tensor<1,dim,real>,nstate> &conservative_soln_gradient) const;
+
+    /** Evaluate the deviatoric strain-rate tensor from conservative variables and gradient of conservative variables
+     *  -- Reference: Pope, Stephen B., "Turbulent Flows", Cambridge University Press (2000). Eq.(2.70)
+     * */
+    dealii::Tensor<2,dim,real> compute_deviatoric_strain_rate_tensor (
+        const std::array<real,nstate> &conservative_soln,
+        const std::array<dealii::Tensor<1,dim,real>,nstate> &conservative_soln_gradient) const;
+
+    /// Evaluate the square of the deviatoric strain-rate tensor magnitude (i.e. double dot product) from conservative variables and gradient of conservative variables
+    real compute_deviatoric_strain_rate_tensor_magnitude_sqr (
+        const std::array<real,nstate> &conservative_soln,
+        const std::array<dealii::Tensor<1,dim,real>,nstate> &conservative_soln_gradient) const;
+
+    /** Evaluate non-dimensional theoretical deviatoric strain-rate tensor based dissipation rate from integrated
+     *  deviatoric strain-rate tensor magnitude squared.
+     *  -- Reference: Cox, Christopher, et al. "Accuracy, stability, and performance comparison 
+     *                between the spectral difference and flux reconstruction schemes." 
+     *                Computers & Fluids 221 (2021): 104922.
+     *  -- Equation (57a) with free-stream nondimensionalization applied
+     * */
+    real compute_deviatoric_strain_rate_tensor_based_dissipation_rate_from_integrated_deviatoric_strain_rate_tensor_magnitude_sqr (
+        const real integrated_deviatoric_strain_rate_tensor_magnitude_sqr) const;
+
     /** Extract gradient of velocities */
     template<typename real2>
-    std::array<dealii::Tensor<1,dim,real2>,dim> 
+    dealii::Tensor<2,dim,real2> 
     extract_velocities_gradient_from_primitive_solution_gradient (
     	const std::array<dealii::Tensor<1,dim,real2>,nstate> &primitive_soln_gradient) const;
 
@@ -83,7 +142,7 @@ public:
      *  Reference: Masatsuka 2018 "I do like CFD", p.148, eq.(4.14.12)
      */
     template<typename real2>
-    std::array<dealii::Tensor<1,dim,real2>,dim> 
+    dealii::Tensor<2,dim,real2>
     compute_viscous_stress_tensor (
     const std::array<real2,nstate> &primitive_soln,
     const std::array<dealii::Tensor<1,dim,real2>,nstate> &primitive_soln_gradient) const;
@@ -142,16 +201,6 @@ public:
     real compute_scaled_viscosity_coefficient_derivative_wrt_temperature_via_dfad (
         std::array<real,nstate> &conservative_soln) const;
 
-    /// Boundary face values
-    void boundary_face_values (
-        const int boundary_type,
-        const dealii::Point<dim, real> &pos,
-        const dealii::Tensor<1,dim,real> &normal,
-        const std::array<real,nstate> &soln_int,
-        const std::array<dealii::Tensor<1,dim,real>,nstate> &soln_grad_int,
-        std::array<real,nstate> &soln_bc,
-        std::array<dealii::Tensor<1,dim,real>,nstate> &soln_grad_bc) const override;
-
 protected:    
     ///@{
     /** Constants for Sutherland's law for viscosity
@@ -171,6 +220,30 @@ protected:
     dissipative_flux_templated (
         const std::array<real2,nstate> &conservative_soln,
         const std::array<dealii::Tensor<1,dim,real2>,nstate> &solution_gradient) const;
+
+    /** No-slip wall boundary conditions
+     *  * Given by equations 460-461 of the following paper:
+     *  * * Hartmann, Ralf. "Numerical analysis of higher order discontinuous Galerkin finite element methods." (2008): 1-107.
+     */
+    void boundary_wall (
+        const dealii::Tensor<1,dim,real> &normal_int,
+        const std::array<real,nstate> &soln_int,
+        const std::array<dealii::Tensor<1,dim,real>,nstate> &soln_grad_int,
+        std::array<real,nstate> &soln_bc,
+        std::array<dealii::Tensor<1,dim,real>,nstate> &soln_grad_bc) const override;
+
+    /// Evaluate the manufactured solution boundary conditions.
+    void boundary_manufactured_solution (
+        const dealii::Point<dim, real> &pos,
+        const dealii::Tensor<1,dim,real> &normal_int,
+        const std::array<real,nstate> &soln_int,
+        const std::array<dealii::Tensor<1,dim,real>,nstate> &soln_grad_int,
+        std::array<real,nstate> &soln_bc,
+        std::array<dealii::Tensor<1,dim,real>,nstate> &soln_grad_bc) const override;
+
+private:
+    /// Returns the square of the magnitude of the tensor (i.e. the double dot product of a tensor with itself)
+    real get_tensor_magnitude_sqr (const dealii::Tensor<2,dim,real> &tensor) const;
 
 };
 
